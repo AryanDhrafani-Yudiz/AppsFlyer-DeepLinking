@@ -15,8 +15,8 @@ public class DeepLinkManager : MonoBehaviour, IAppsFlyerConversionData
 
     [Header("References")]
     [SerializeField] Button shareButton;
-    [SerializeField] TMP_Text generatedRoomCode;
-    [SerializeField] TMP_Text roomCodeOnDeepLinking;
+    [SerializeField] TMP_Text generatedRoomCodeTxt;
+    [SerializeField] TMP_Text roomCodeOnDeepLinkingTxt;
 
     [Header("OneLink Configuration")]
     [SerializeField] string baseOneLinkUrl = "https://aryandeeplinking.onelink.me/2giF";
@@ -37,8 +37,6 @@ public class DeepLinkManager : MonoBehaviour, IAppsFlyerConversionData
 
     void Start()
     {
-        Debug.Log("[DeepLinkManager] Start called");
-
         // Validate required fields
         if (string.IsNullOrEmpty(devKey))
         {
@@ -46,13 +44,13 @@ public class DeepLinkManager : MonoBehaviour, IAppsFlyerConversionData
             return;
         }
 
-        if (roomCodeOnDeepLinking == null)
+        if (roomCodeOnDeepLinkingTxt == null)
         {
             Debug.LogError("[DeepLinkManager] Room Code Display reference not set in Inspector!");
             return;
         }
 
-        // Initialize AppsFlyer
+        // Initialize AppsFlyer SDK
         AppsFlyer.initSDK(
             devKey,
             appleAppId,  // Will be empty string for Android-only
@@ -61,6 +59,7 @@ public class DeepLinkManager : MonoBehaviour, IAppsFlyerConversionData
         // Set debug mode
         AppsFlyer.setIsDebug(isDebug);
 
+        // Start AppsFlyer SDK
         AppsFlyer.startSDK();
 
         Debug.Log("[DeepLinkManager] AppsFlyer SDK initialized");
@@ -72,9 +71,9 @@ public class DeepLinkManager : MonoBehaviour, IAppsFlyerConversionData
         }
 
         // Clear display text on start
-        if (roomCodeOnDeepLinking != null)
+        if (roomCodeOnDeepLinkingTxt != null)
         {
-            roomCodeOnDeepLinking.text = "";
+            roomCodeOnDeepLinkingTxt.text = "";
         }
     }
 
@@ -122,6 +121,7 @@ public class DeepLinkManager : MonoBehaviour, IAppsFlyerConversionData
             DeepLinkData parsedData = new DeepLinkData();
 
             Debug.Log("Parsing Individual Parameters:");
+
             foreach (string pair in pairs)
             {
                 // Split each pair by = to get key and value
@@ -161,9 +161,9 @@ public class DeepLinkManager : MonoBehaviour, IAppsFlyerConversionData
             // Update Room Code Display Text with only the 6-digit code if found
             if (!string.IsNullOrEmpty(roomCodeForInput))
             {
-                if (roomCodeOnDeepLinking != null)
+                if (roomCodeOnDeepLinkingTxt != null)
                 {
-                    roomCodeOnDeepLinking.text = roomCodeForInput;
+                    roomCodeOnDeepLinkingTxt.text = roomCodeForInput;
                     OnRoomCodeReceived(roomCodeForInput);
                     Debug.Log($"[Room Code Display Text] Updated with room code: {roomCodeForInput}");
                 }
@@ -190,7 +190,7 @@ public class DeepLinkManager : MonoBehaviour, IAppsFlyerConversionData
     {
         string randomRoomCode = GenerateRandomRoomCode();
         Debug.Log($"[DeepLinkManager] Generated random code: {randomRoomCode}");
-        ShareRoomCode(randomRoomCode);
+        GenerateAndShareLink(randomRoomCode);
     }
 
     // Random Code Generation Logic
@@ -199,9 +199,9 @@ public class DeepLinkManager : MonoBehaviour, IAppsFlyerConversionData
         return UnityEngine.Random.Range(100000, 999999).ToString();
     }
 
-    void ShareRoomCode(string roomCode)
+    void GenerateAndShareLink(string roomCode)
     {
-        generatedRoomCode.text = roomCode;
+        generatedRoomCodeTxt.text = roomCode;
         string generatedLink = GenerateDeepLink(roomCode);
         ShareLink(generatedLink, roomCode);
     }
