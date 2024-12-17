@@ -6,257 +6,386 @@ using System.Collections.Generic;
 using TMPro;
 using System.Linq;
 
+/// <summary>
+/// Configuration class for AppsFlyer integration settings.
+/// Contains all necessary parameters for deep linking and attribution.
+/// </summary>
+[Serializable]
+public class AppsFlyerSettings
+{
+    [Header("AppsFlyer Basic Config")]
+    public string devKey = "";                    // Developer key from AppsFlyer dashboard
+    public string appleAppId = "";                // Apple App ID for iOS builds
+    public bool isDebug = true;                   // Enable debug logging
+    public string outOfStoreSource = "Dropbox";   // Source for non-store installations
+
+    [Header("OneLink URL Config")]
+    public string baseOneLinkUrl = "";            // Base URL for OneLink deep links
+    public string mediaSource = "";               // Source of the traffic (e.g., "Facebook")
+    public string campaignName = "";              // Name of the marketing campaign
+    public string fallbackUrl = "";               // Fallback URL if deep linking fails
+    public string oneLinkDomain = "";             // Custom domain for OneLink
+
+    [Header("Deep Link Parameters")]
+    public string deepLinkValueParam = "joinroomcode";      // Parameter for join room action
+    public string deepLinkSubParam = "deep_link_sub1";      // Sub-parameter for additional data
+    public string customRoomCodeParam = "myroomcode";       // Custom parameter for room code
+    public string experienceParam = "af_xp";                // Experience parameter name
+    public string experienceValue = "custom";               // Experience value identifier
+    public string fallbackScheme = "deeplinkwithoutgoogleplay";  // URL scheme for fallback
+    public string fallbackHost = "open";                    // Host for fallback URL
+}
+
+/// <summary>
+/// Data structure to hold deep link information including room code and additional parameters.
+/// </summary>
+public class DeepLinkData
+{
+    public string roomCode;
+    public Dictionary<string, string> parameters;
+
+    public DeepLinkData()
+    {
+        parameters = new Dictionary<string, string>();
+    }
+}
+
+/// <summary>
+/// Manages deep linking functionality using AppsFlyer SDK.
+/// Handles room code sharing and deep link processing for multiplayer game rooms.
+/// </summary>
 public class DeepLinkManager : MonoBehaviour, IAppsFlyerConversionData
 {
-    [Header("AppsFlyer Configuration")]
-    [SerializeField] string devKey = "";  // Dev key input field
-    [SerializeField] string appleAppId = "";  // Apple App ID input field If iOS
-    [SerializeField] bool isDebug = true;  // Debug mode toggle
+    [Header("Configuration")]
+    [SerializeField] AppsFlyerSettings settings;
 
-    [Header("References")]
-    [SerializeField] Button shareButton;
-    [SerializeField] TMP_Text generatedRoomCode;
-    [SerializeField] TMP_Text roomCodeOnDeepLinking;
+    [Header("UI References")]
+    [SerializeField] Button shareButton;              // Button to trigger room sharing
+    [SerializeField] TMP_Text generatedRoomCode;      // Display for generated room code
+    [SerializeField] TMP_Text roomCodeOnDeepLinking;  // Display for received room code
 
-    [Header("OneLink Configuration")]
-    [SerializeField] string baseOneLinkUrl = "https://aryandeeplinking.onelink.me/2giF";
-    [SerializeField] string mediaSource = "RummyGame";
-    [SerializeField] string campaignName = "roomcode";
-    [SerializeField] string fallbackUrl = "deeplinkwithoutgoogleplay://open";
+    private DeepLinkData deepLinkData;
 
-    public class DeepLinkData
+    /// <summary>
+    /// Initializes the deep link data and AppsFlyer SDK on Awake.
+    /// </summary>
+    void Awake()
     {
-        public string roomCode;
-        public Dictionary<string, string> parameters;
-
-        public DeepLinkData()
-        {
-            parameters = new Dictionary<string, string>();
-        }
+        deepLinkData = new DeepLinkData();
+        InitializeAppsFlyer();
     }
 
+    /// <summary>
+    /// Sets up initial AppsFlyer configuration including out-of-store source and OneLink domain.
+    /// </summary>
+    void InitializeAppsFlyer()
+    {
+        AppsFlyer.setOutOfStore(settings.outOfStoreSource);
+        AppsFlyer.setOneLinkCustomDomain(new string[] { settings.oneLinkDomain });
+    }
+
+    /// <summary>
+    /// Validates configuration and sets up AppsFlyer SDK and UI elements.
+    /// </summary>
     void Start()
     {
-        Debug.Log("[DeepLinkManager] Start called");
-
-        // Validate required fields
-        if (string.IsNullOrEmpty(devKey))
+        if (ValidateConfiguration())
         {
-            Debug.LogError("[DeepLinkManager] Dev Key not set in Inspector!");
-            return;
-        }
-
-        if (roomCodeOnDeepLinking == null)
-        {
-            Debug.LogError("[DeepLinkManager] Room Code Display reference not set in Inspector!");
-            return;
-        }
-
-        // Initialize AppsFlyer
-        AppsFlyer.initSDK(
-            devKey,
-            appleAppId,  // Will be empty string for Android-only
-            this);
-
-        // Set debug mode
-        AppsFlyer.setIsDebug(isDebug);
-
-        AppsFlyer.startSDK();
-
-        Debug.Log("[DeepLinkManager] AppsFlyer SDK initialized");
-
-        if (shareButton != null)
-        {
-            shareButton.onClick.AddListener(OnShareButtonClicked);
-            Debug.Log("[DeepLinkManager] Share button listener added");
-        }
-
-        // Clear display text on start
-        if (roomCodeOnDeepLinking != null)
-        {
-            roomCodeOnDeepLinking.text = "";
+            SetupAppsFlyer();
+            SetupUI();
         }
     }
 
-    // Handle Conversion Data on App Starting/Unpausing
+    /// <summary>
+    /// Validates that required configuration parameters are set.
+    /// </summary>
+    /// <returns>True if configuration is valid, false otherwise.</returns>
+    bool ValidateConfiguration()
+    {
+        if (string.IsNullOrEmpty(settings.devKey))
+        {
+            Debug.LogError("[DeepLinkManager] Dev Key not set in Inspector!");
+            return false;
+        }
+        return true;
+    }
+
+    /// <summary>
+    /// Initializes AppsFlyer SDK with configuration parameters and starts tracking.
+    /// </summary>
+    void SetupAppsFlyer()
+    {
+        AppsFlyer.initSDK(settings.devKey, settings.appleAppId, this);
+        AppsFlyer.setIsDebug(settings.isDebug);
+        AppsFlyer.setResolveDeepLinkURLs(new string[] { settings.oneLinkDomain });
+        AppsFlyer.startSDK();
+        Debug.Log("[DeepLinkManager] AppsFlyer SDK initialized");
+    }
+
+    /// <summary>
+    /// Sets up UI elements and their event listeners.
+    /// </summary>
+    void SetupUI()
+    {
+        if (shareButton != null)
+            shareButton.onClick.AddListener(OnShareButtonClicked);
+
+        if (roomCodeOnDeepLinking != null)
+            roomCodeOnDeepLinking.text = "";
+    }
+
+    /// <summary>
+    /// Callback for successful conversion data reception.
+    /// Processes deep link data if present and it's the first launch.
+    /// </summary>
+    /// <param name="conversionData">JSON string containing conversion data</param>
     public void onConversionDataSuccess(string conversionData)
     {
         Debug.Log($"Raw Data: {conversionData}");
-        ParseAndDisplayParameters(conversionData);
+
+        if (conversionData.Contains(settings.deepLinkValueParam) &&
+            conversionData.Contains("\"is_first_launch\":true"))
+        {
+            ParseAndDisplayParameters(conversionData);
+        }
+        else
+        {
+            Debug.Log("[DeepLinkManager] No deep link data or not first launch");
+        }
     }
 
-    public void onConversionDataFail(string error)
-    {
-        Debug.Log($"[DeepLinkManager] Conversion Data Failed: {error}");
-    }
-
-    //Handle AppOpenAttribution Data On Deep Linking / Deferred Deep Linking
-    public void onAppOpenAttribution(string attributionData)
-    {
-        Debug.Log("----------------------------------------");
-        Debug.Log("[DeepLinkManager] App Open Attribution");
-        Debug.Log("----------------------------------------");
-        Debug.Log($"Raw Data: {attributionData}");
-        ParseAndDisplayParameters(attributionData);
-    }
-
-    public void onAppOpenAttributionFailure(string error)
-    {
-        Debug.Log($"[DeepLinkManager] App Open Attribution Failed: {error}");
-    }
-
-    // Parsing and Debug Purposes , Remove Debugs In Dev Builds
+    /// <summary>
+    /// Parses deep link data and updates UI with room code if present.
+    /// </summary>
+    /// <param name="data">Raw deep link data string</param>
     void ParseAndDisplayParameters(string data)
     {
         try
         {
-            Debug.Log("[DeepLinkManager] Starting Parameter Parsing");
-            Debug.Log("========================================");
-            Debug.Log($"Raw Data Received: {data}");
-            Debug.Log("----------------------------------------");
+            Debug.Log($"[DeepLinkManager] Parsing data: {data}");
+            string roomCode = ParseRoomCode(data);
 
-            string roomCodeForInput = "";
-
-            // Split the data string by & to get individual parameters
-            string[] pairs = data.Split('&');
-            DeepLinkData parsedData = new DeepLinkData();
-
-            Debug.Log("Parsing Individual Parameters:");
-            foreach (string pair in pairs)
+            if (!string.IsNullOrEmpty(roomCode))
             {
-                // Split each pair by = to get key and value
-                string[] keyValue = pair.Split('=');
-                if (keyValue.Length == 2)
-                {
-                    string key = Uri.UnescapeDataString(keyValue[0]);
-                    string value = Uri.UnescapeDataString(keyValue[1]);
-
-                    // Store in dictionary
-                    parsedData.parameters[key] = value;
-
-                    // Print each parameter on a new line with clear formatting
-                    Debug.Log($"Parameter Found:");
-                    Debug.Log($"    Key: {key}");
-                    Debug.Log($"    Value: {value}");
-                    Debug.Log("----------------");
-
-                    // Special handling for room code
-                    if (key == "deep_link_sub1" || key == "myroomcode")
-                    {
-                        // Extract only the 6 digits if present in the value
-                        string sixDigitCode = new string(value.Where(char.IsDigit).Take(6).ToArray());
-                        if (sixDigitCode.Length == 6)
-                        {
-                            roomCodeForInput = sixDigitCode;
-                            Debug.Log($"[ROOM CODE] 6-Digit Code Found: {roomCodeForInput}");
-                            Debug.Log("----------------");
-                        }
-                    }
-                }
+                UpdateUIWithRoomCode(roomCode);
             }
-
-            Debug.Log("Parameter Parsing Complete");
-            Debug.Log("----------------------------------------");
-
-            // Update Room Code Display Text with only the 6-digit code if found
-            if (!string.IsNullOrEmpty(roomCodeForInput))
-            {
-                if (roomCodeOnDeepLinking != null)
-                {
-                    roomCodeOnDeepLinking.text = roomCodeForInput;
-                    OnRoomCodeReceived(roomCodeForInput);
-                    Debug.Log($"[Room Code Display Text] Updated with room code: {roomCodeForInput}");
-                }
-                else
-                {
-                    Debug.LogError("[DeepLinkManager]Room Code Display Text reference is missing!");
-                }
-            }
-            else
-            {
-                Debug.Log("[ROOM CODE] No valid 6-digit room code found in parameters");
-            }
-            Debug.Log("========================================");
         }
         catch (Exception e)
         {
-            Debug.LogError($"[DeepLinkManager] Error parsing parameters: {e.Message}");
-            Debug.LogError($"[DeepLinkManager] Raw data: {data}");
+            Debug.LogError($"[DeepLinkManager] Parse error: {e.Message}\nData: {data}");
         }
     }
 
-    // On Share Button Clicked
-    void OnShareButtonClicked()
+    /// <summary>
+    /// Extracts room code from deep link data.
+    /// </summary>
+    /// <param name="data">Raw deep link data</param>
+    /// <returns>Room code string if found, null otherwise</returns>
+    string ParseRoomCode(string data)
     {
-        string randomRoomCode = GenerateRandomRoomCode();
-        Debug.Log($"[DeepLinkManager] Generated random code: {randomRoomCode}");
-        ShareRoomCode(randomRoomCode);
+        var parameters = ParseParameters(data);
+        return ExtractRoomCode(parameters);
     }
 
-    // Random Code Generation Logic
-    string GenerateRandomRoomCode()
+    /// <summary>
+    /// Parses deep link data into key-value pairs.
+    /// Handles both JSON and URL parameter formats.
+    /// </summary>
+    /// <param name="data">Raw deep link data</param>
+    /// <returns>Dictionary of parsed parameters</returns>
+    Dictionary<string, string> ParseParameters(string data)
     {
-        return UnityEngine.Random.Range(100000, 999999).ToString();
-    }
+        var parameters = new Dictionary<string, string>();
 
-    void ShareRoomCode(string roomCode)
-    {
-        generatedRoomCode.text = roomCode;
-        string generatedLink = GenerateDeepLink(roomCode);
-        ShareLink(generatedLink, roomCode);
-    }
-
-    // Deep Link Generation which will be shared
-    string GenerateDeepLink(string roomCode)
-    {
-        Dictionary<string, string> parameters = new Dictionary<string, string>
+        if (data.StartsWith("{")) // JSON format
         {
-            {"af_xp", "custom"},
-            {"pid", mediaSource},
-            {"c", campaignName},
-            {"deep_link_value", "joinroomcode"},
-            {"deep_link_sub1", roomCode},
-            {"af_dp", fallbackUrl},
-            {"myroomcode", roomCode}
-        };
+            ParseJsonFormat(data, parameters);
+        }
+        else // URL parameter format
+        {
+            ParseUrlFormat(data, parameters);
+        }
 
-        string paramString = "";
+        return parameters;
+    }
+
+    /// <summary>
+    /// Parses JSON formatted deep link data.
+    /// </summary>
+    /// <param name="data">JSON string</param>
+    /// <param name="parameters">Dictionary to store parsed parameters</param>
+    void ParseJsonFormat(string data, Dictionary<string, string> parameters)
+    {
+        data = data.Replace("\\/", "/").Trim('{', '}');
+        foreach (string pair in data.Split(','))
+        {
+            string[] splitPair = pair.Split(':');
+            if (splitPair.Length == 2)
+            {
+                string key = splitPair[0].Trim('"', ' ');
+                string value = splitPair[1].Trim('"', ' ');
+                if (value.ToLower() != "null")
+                {
+                    parameters[key] = value;
+                }
+            }
+        }
+    }
+
+    /// <summary>
+    /// Parses URL parameter formatted deep link data.
+    /// </summary>
+    /// <param name="data">URL parameter string</param>
+    /// <param name="parameters">Dictionary to store parsed parameters</param>
+    void ParseUrlFormat(string data, Dictionary<string, string> parameters)
+    {
+        foreach (string pair in data.Split('&'))
+        {
+            string[] keyValue = pair.Split('=');
+            if (keyValue.Length == 2)
+            {
+                parameters[Uri.UnescapeDataString(keyValue[0])] =
+                    Uri.UnescapeDataString(keyValue[1]);
+            }
+        }
+    }
+
+    /// <summary>
+    /// Extracts 6-digit room code from parameters dictionary.
+    /// Checks both deep link sub parameter and custom room code parameter.
+    /// </summary>
+    /// <param name="parameters">Dictionary of parsed parameters</param>
+    /// <returns>6-digit room code if found, null otherwise</returns>
+    string ExtractRoomCode(Dictionary<string, string> parameters)
+    {
         foreach (var param in parameters)
         {
-            string encodedKey = Uri.EscapeDataString(param.Key);
-            string encodedValue = Uri.EscapeDataString(param.Value);
-            paramString += $"{encodedKey}={encodedValue}&";
+            if (param.Key == settings.deepLinkSubParam ||
+                param.Key == settings.customRoomCodeParam)
+            {
+                string sixDigitCode = new string(
+                    param.Value.Where(char.IsDigit).Take(6).ToArray());
+                if (sixDigitCode.Length == 6)
+                    return sixDigitCode;
+            }
         }
-
-        paramString = paramString.TrimEnd('&');
-        string finalUrl = $"{baseOneLinkUrl}?{paramString}";
-
-        Debug.Log($"[DeepLinkManager] Generated deep link: {finalUrl}");
-        return finalUrl;
+        return null;
     }
 
-    // Share Link With Native Share
+    /// <summary>
+    /// Updates UI with received room code and triggers room code processing.
+    /// </summary>
+    /// <param name="roomCode">Valid room code</param>
+    void UpdateUIWithRoomCode(string roomCode)
+    {
+        if (roomCodeOnDeepLinking != null)
+        {
+            roomCodeOnDeepLinking.text = roomCode;
+            OnRoomCodeReceived(roomCode);
+            Debug.Log($"[DeepLinkManager] Room code set: {roomCode}");
+        }
+    }
+
+    /// <summary>
+    /// Generates a deep link URL with room code and additional parameters.
+    /// </summary>
+    /// <param name="roomCode">Room code to include in deep link</param>
+    /// <returns>Formatted deep link URL</returns>
+    string GenerateDeepLink(string roomCode)
+    {
+        var parameters = new Dictionary<string, string>
+        {
+            { settings.experienceParam, settings.experienceValue },
+            { "pid", settings.mediaSource },
+            { "c", settings.campaignName },
+            { settings.deepLinkValueParam, settings.deepLinkValueParam },
+            { settings.deepLinkSubParam, roomCode },
+            { "af_dp", $"{settings.fallbackUrl}?roomcode={roomCode}" },
+            { settings.customRoomCodeParam, roomCode },
+            { "is_retargeting", "true" }
+        };
+
+        string paramString = string.Join("&", parameters.Select(p =>
+            $"{Uri.EscapeDataString(p.Key)}={Uri.EscapeDataString(p.Value)}"));
+
+        return $"{settings.baseOneLinkUrl}?{paramString}";
+    }
+
+    /// <summary>
+    /// Callback for failed conversion data reception.
+    /// </summary>
+    public void onConversionDataFail(string error) =>
+        Debug.Log($"[DeepLinkManager] Conversion Data Failed: {error}");
+
+    /// <summary>
+    /// Callback for successful app open attribution.
+    /// </summary>
+    public void onAppOpenAttribution(string attributionData)
+    {
+        Debug.Log($"[DeepLinkManager] App Open Attribution Data: {attributionData}");
+        ParseAndDisplayParameters(attributionData);
+    }
+
+    /// <summary>
+    /// Callback for failed app open attribution.
+    /// </summary>
+    public void onAppOpenAttributionFailure(string error) =>
+        Debug.Log($"[DeepLinkManager] App Open Attribution Failed: {error}");
+
+    /// <summary>
+    /// Handler for share button click. Generates and shares a random room code.
+    /// </summary>
+    void OnShareButtonClicked() =>
+        ShareRoomCode(GenerateRandomRoomCode());
+
+    /// <summary>
+    /// Generates a random 6-digit room code.
+    /// </summary>
+    /// <returns>Random 6-digit room code</returns>
+    string GenerateRandomRoomCode() =>
+        UnityEngine.Random.Range(100000, 999999).ToString();
+
+    /// <summary>
+    /// Updates UI with generated room code and initiates sharing.
+    /// </summary>
+    /// <param name="roomCode">Generated room code</param>
+    void ShareRoomCode(string roomCode)
+    {
+        if (generatedRoomCode != null)
+            generatedRoomCode.text = roomCode;
+        ShareLink(GenerateDeepLink(roomCode), roomCode);
+    }
+
+    /// <summary>
+    /// Shares the room code and deep link using native sharing functionality.
+    /// </summary>
+    /// <param name="link">Generated deep link URL</param>
+    /// <param name="roomCode">Room code to share</param>
     void ShareLink(string link, string roomCode)
     {
         string shareMessage = $"Join my game room with code: {roomCode}\n{link}";
-
         new NativeShare()
             .SetSubject("Join My Game Room")
             .SetText(shareMessage)
             .Share();
     }
 
+    /// <summary>
+    /// Handles received room code. Implement game-specific room joining logic here.
+    /// </summary>
+    /// <param name="roomCode">Received room code</param>
     void OnRoomCodeReceived(string roomCode)
     {
-        Debug.LogError($"[DeepLinkManager] Room code received: {roomCode}");
+        Debug.Log($"[DeepLinkManager] Room code received: {roomCode}");
         // Implement your room joining logic here
     }
 
+    /// <summary>
+    /// Cleanup method to remove event listeners.
+    /// </summary>
     void OnDestroy()
     {
         if (shareButton != null)
-        {
             shareButton.onClick.RemoveListener(OnShareButtonClicked);
-        }
     }
 }

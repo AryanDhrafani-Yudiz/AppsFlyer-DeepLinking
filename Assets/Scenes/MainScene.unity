@@ -549,16 +549,26 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: f54456e999e0e4f138f5f0bc8c6fc745, type: 3}
   m_Name: 
   m_EditorClassIdentifier: 
-  devKey: DZDM5E2WJnEeF7asGEDkHK
-  appleAppId: 
-  isDebug: 1
+  settings:
+    devKey: DZDM5E2WJnEeF7asGEDkHK
+    appleAppId: 
+    isDebug: 1
+    outOfStoreSource: DropBox
+    baseOneLinkUrl: https://aryandeeplinking.onelink.me/gNxf
+    mediaSource: RummyGame
+    campaignName: roomcode
+    fallbackUrl: deeplinkwithoutgoogleplay://open
+    oneLinkDomain: aryandeeplinking.onelink.me
+    deepLinkValueParam: joinroomcode
+    deepLinkSubParam: deep_link_sub1
+    customRoomCodeParam: myroomcode
+    experienceParam: af_xp
+    experienceValue: custom
+    fallbackScheme: deeplinkwithoutgoogleplay
+    fallbackHost: open
   shareButton: {fileID: 1317109090}
   generatedRoomCode: {fileID: 2034998884}
   roomCodeOnDeepLinking: {fileID: 1336516730}
-  baseOneLinkUrl: https://aryandeeplinking.onelink.me/2giF
-  mediaSource: RummyGame
-  campaignName: roomcode
-  fallbackUrl: deeplinkwithoutgoogleplay://open
 --- !u!4 &1213284985
 Transform:
   m_ObjectHideFlags: 0
